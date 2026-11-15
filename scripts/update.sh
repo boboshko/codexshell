@@ -78,17 +78,30 @@ update_destination_safe() {
     local item=$1 parent
     [[ ! -L "$UPDATE_ROOT/$item" ]] || return 1
     if [[ -e "$UPDATE_ROOT/$item" && ! -f "$UPDATE_ROOT/$item" ]]; then return 1; fi
-    case "$item" in
-        */*)
-            parent=${item%/*}
-            [[ ! -L "$UPDATE_ROOT/$parent" ]] || return 1
-            if [[ -e "$UPDATE_ROOT/$parent" && ! -d "$UPDATE_ROOT/$parent" ]]; then return 1; fi
-            ;;
-    esac
+    parent=$item
+    while [[ "$parent" == */* ]]; do
+        parent=${parent%/*}
+        [[ ! -L "$UPDATE_ROOT/$parent" ]] || return 1
+        if [[ -e "$UPDATE_ROOT/$parent" && ! -d "$UPDATE_ROOT/$parent" ]]; then return 1; fi
+    done
+}
+update_create_parent() {
+    local parent=$1 ancestor
+    [[ -n "$parent" ]] || return 0
+    if [[ "$parent" == */* ]]; then
+        ancestor=${parent%/*}
+        update_create_parent "$ancestor" || return 1
+    fi
+    [[ ! -L "$UPDATE_ROOT/$parent" ]] || return 1
+    if [[ ! -e "$UPDATE_ROOT/$parent" ]]; then
+        UPDATE_CREATED_DIRS+=("$parent")
+        mkdir -- "$UPDATE_ROOT/$parent" || return 1
+    fi
+    [[ -d "$UPDATE_ROOT/$parent" ]]
 }
 
 update_main() {
-    local tag=${1-} prefix item parent version script_dir
+    local tag=${1-} prefix item version script_dir
     local -a required optional manifest archive_members
     [[ "$#" == 1 && "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
         printf 'Usage: update.sh vMAJOR.MINOR.PATCH\n' >&2
@@ -108,8 +121,11 @@ update_main() {
     UPDATE_STAGE=$(mktemp -d "$UPDATE_ROOT/.codexshell-update.XXXXXXXX") || return 1
     prefix=codexshell-${tag#v}
     required=(start.sh VERSION scripts/lib-menu.sh scripts/lib-version.sh scripts/lib-update.sh scripts/update.sh
-        docker/Dockerfile docker/entrypoint.sh docker/codex-session.sh docker/firewall.sh docker/allowed-domains.txt)
-    optional=(README.md CHANGELOG.md)
+        scripts/lib-tools.sh scripts/lib-build.sh scripts/tools-catalog.tsv
+        scripts/platform/macos/lib-xcode-bridge.sh scripts/platform/macos/xcode-bridge.py
+        docker/Dockerfile docker/install-tools.sh docker/entrypoint.sh docker/codex-session.sh docker/firewall.sh docker/allowed-domains.txt
+        docker/xcode-shims/xcodebuild docker/xcode-shims/xcrun docker/xcode-shims/simctl docker/xcode-shims/bridge-client.mjs)
+    optional=(README.md CHANGELOG.md docs/tools.md)
     if ! curl --disable --silent --show-error --fail --connect-timeout 10 --max-time 60 \
         --retry 0 --proto '=https' --max-redirs 0 --max-filesize 20971520 \
         --output "$UPDATE_STAGE/release.tar.gz" \
@@ -150,7 +166,7 @@ update_main() {
     [[ "$version" == "$tag" ]] || { update_error 'release VERSION does not match the selected tag'; return 1; }
     for item in "${manifest[@]}"; do
         case "$item" in
-            *.sh) chmod 755 -- "$UPDATE_STAGE/unpack/$prefix/$item" || return 1 ;;
+            *.sh|docker/xcode-shims/xcodebuild|docker/xcode-shims/xcrun|docker/xcode-shims/simctl) chmod 755 -- "$UPDATE_STAGE/unpack/$prefix/$item" || return 1 ;;
             *) chmod 644 -- "$UPDATE_STAGE/unpack/$prefix/$item" || return 1 ;;
         esac
         if [[ -f "$UPDATE_ROOT/$item" ]]; then
@@ -160,11 +176,8 @@ update_main() {
             cp -p -- "$UPDATE_ROOT/$item" "$UPDATE_STAGE/backup/$item" || return 1
         fi
     done
-    for parent in scripts docker; do
-        if [[ ! -d "$UPDATE_ROOT/$parent" ]]; then
-            UPDATE_CREATED_DIRS+=("$parent")
-            mkdir -- "$UPDATE_ROOT/$parent" || return 1
-        fi
+    for item in "${manifest[@]}"; do
+        if [[ "$item" == */* ]]; then update_create_parent "${item%/*}" || return 1; fi
     done
     for item in "${manifest[@]}"; do
         update_destination_safe "$item" || { update_error "destination changed: $item"; return 1; }

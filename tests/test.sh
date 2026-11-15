@@ -7,13 +7,14 @@ mkdir -p "$TMP/bin" "$TMP/app/config" "$TMP/app/docker" "$TMP/project with space
 cp "$ROOT/start.sh" "$TMP/app/start.sh"
 cp "$ROOT/VERSION" "$TMP/app/VERSION"
 cp -R "$ROOT/scripts" "$TMP/app/scripts"
-cp "$ROOT/docker/allowed-domains.txt" "$TMP/app/docker/allowed-domains.txt"
+cp -R "$ROOT/docker/." "$TMP/app/docker/"
 printf 'enabled\n' > "$TMP/app/config/firewall"
 : > "$TMP/app/config/folders.txt"
 cat > "$TMP/bin/docker" <<'MOCK'
 #!/usr/bin/env bash
 case "$1" in
   info) exit 0 ;;
+  image) printf 'sha256:fixture\n' ;;
   build) printf '%s\n' "$@" > "$TEST_BUILD_ARGS" ;;
   run) printf '%s\n' "$@" > "$TEST_RUN_ARGS" ;;
   *) exit 1 ;;

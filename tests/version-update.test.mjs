@@ -296,3 +296,58 @@ test('Git source archives exclude local toolkit links and install without creati
   assert.equal(installed.status, 0, installed.stderr + installed.stdout);
   assert.equal(fs.readFileSync(path.join(f.app, 'VERSION'), 'utf8'), 'v0.2.0\n');
 });
+
+test('AC11 nested tool payload and executable shims install while optional docs stay absent', t => {
+  const f = sandbox(t, 'tools-update');
+  for (const file of ['README.md', 'CHANGELOG.md']) if (fs.existsSync(path.join(f.app, file))) fs.unlinkSync(path.join(f.app, file));
+  fs.mkdirSync(path.join(f.app, 'config'));
+  fs.writeFileSync(path.join(f.app, 'config/tools.conf'), 'TOOL_GO=on\n');
+  fs.writeFileSync(path.join(f.app, '.gitignore'), 'private-local\n');
+  release(f);
+  fs.rmSync(path.join(f.app, 'scripts/platform'), { recursive: true });
+  fs.rmSync(path.join(f.app, 'docker/xcode-shims'), { recursive: true });
+  const r = install(f);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  for (const file of ['scripts/platform/macos/xcode-bridge.py', 'docker/xcode-shims/bridge-client.mjs', 'scripts/tools-catalog.tsv', 'docker/install-tools.sh']) assert.equal(fs.existsSync(path.join(f.app, file)), true, file);
+  for (const name of ['xcodebuild', 'xcrun', 'simctl']) assert.ok(fs.statSync(path.join(f.app, 'docker/xcode-shims', name)).mode & 0o111, name);
+  assert.equal(fs.readFileSync(path.join(f.app, 'config/tools.conf'), 'utf8'), 'TOOL_GO=on\n');
+  assert.equal(fs.readFileSync(path.join(f.app, '.gitignore'), 'utf8'), 'private-local\n');
+  assert.equal(fs.existsSync(path.join(f.app, 'README.md')), false);
+  assert.equal(fs.existsSync(path.join(f.app, 'CHANGELOG.md')), false);
+});
+
+test('AC11 updater rejects any symlinked ancestor before writing nested tools', t => {
+  const f = sandbox(t, 'tools-update-ancestor'); release(f);
+  const outside = path.join(f.dir, 'outside-platform');
+  fs.renameSync(path.join(f.app, 'scripts/platform'), outside);
+  fs.symlinkSync(outside, path.join(f.app, 'scripts/platform'));
+  const original = fs.readFileSync(path.join(outside, 'macos/xcode-bridge.py'));
+  const before = snapshot(f.app);
+  assert.notEqual(install(f).status, 0);
+  assert.deepEqual(snapshot(f.app), before);
+  assert.deepEqual(fs.readFileSync(path.join(outside, 'macos/xcode-bridge.py')), original);
+});
+
+test('AC11 failed nested install removes new directory tree and restores existing payload', t => {
+  const f = sandbox(t, 'tools-update-nested-rollback'); release(f);
+  fs.rmSync(path.join(f.app, 'scripts/platform'), { recursive: true });
+  fs.rmSync(path.join(f.app, 'docker/xcode-shims'), { recursive: true });
+  const before = snapshot(f.app);
+  f.env.FAULT_APP = f.app;
+  executable(path.join(f.bin, 'mv'), `last="\${!#}"\nif [[ "$last" == "$FAULT_APP/docker/xcode-shims/bridge-client.mjs" ]]; then exit 73; fi\nexec /bin/mv "$@"`);
+  const r = install(f); assert.notEqual(r.status, 0);
+  assert.deepEqual(snapshot(f.app), before);
+  assert.equal(fs.existsSync(path.join(f.app, 'scripts/platform')), false);
+  assert.equal(fs.existsSync(path.join(f.app, 'docker/xcode-shims')), false);
+});
+
+test('AC11 every added required tool file is mandatory in the exact release archive', t => {
+  const f = sandbox(t, 'tools-update-required');
+  const added = ['scripts/lib-tools.sh', 'scripts/lib-build.sh', 'scripts/tools-catalog.tsv', 'docker/install-tools.sh', 'scripts/platform/macos/lib-xcode-bridge.sh', 'scripts/platform/macos/xcode-bridge.py', 'docker/xcode-shims/bridge-client.mjs', 'docker/xcode-shims/xcodebuild', 'docker/xcode-shims/xcrun', 'docker/xcode-shims/simctl'];
+  const before = snapshot(f.app);
+  for (const missing of added) {
+    release(f, releaseEntries(f.app).filter(entry => !entry.name.endsWith('/' + missing)));
+    const r = install(f); assert.notEqual(r.status, 0, missing);
+    assert.deepEqual(snapshot(f.app), before, missing);
+  }
+});

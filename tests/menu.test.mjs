@@ -6,7 +6,7 @@ import { sandbox, executable, start, bash } from './helpers/fixtures.mjs';
 
 function docker(f) {
   const log = path.join(f.dir, 'docker.log');
-  executable(path.join(f.bin, 'docker'), `printf '%s\\n' "$@" >> "$DOCKER_LOG"\ncase "$1" in\n info) exit "\${DOCKER_INFO_STATUS:-0}" ;;\n build) exit "\${DOCKER_BUILD_STATUS:-0}" ;;\n run) exit "\${DOCKER_RUN_STATUS:-0}" ;;\n *) exit 99 ;;\nesac`);
+  executable(path.join(f.bin, 'docker'), `printf '%s\\n' "$@" >> "$DOCKER_LOG"\ncase "$1" in\n image) printf 'sha256:fixture\\n' ;;\n info) exit "\${DOCKER_INFO_STATUS:-0}" ;;\n build) exit "\${DOCKER_BUILD_STATUS:-0}" ;;\n run) exit "\${DOCKER_RUN_STATUS:-0}" ;;\n *) exit 99 ;;\nesac`);
   f.env.DOCKER_LOG = log;
   return log;
 }

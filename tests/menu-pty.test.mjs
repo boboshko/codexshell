@@ -17,7 +17,7 @@ test('real PTY routes all main/folder/firewall actions and restores TTY before p
   const project = path.join(f.dir, 'project Ω $(touch injected)');
   fs.mkdirSync(project);
   const log = path.join(f.dir, 'docker.log');
-  executable(path.join(f.bin, 'docker'), `if [[ "$1" == run ]]; then\n  [[ -t 0 && -t 1 ]]\n  [[ "$(stty -g)" == "$(cat "$PTY_BEFORE")" ]]\nfi\nprintf '%s\\n' "$1" >> "$DOCKER_LOG"`);
+  executable(path.join(f.bin, 'docker'), `if [[ "$1" == run ]]; then\n  [[ -t 0 && -t 1 ]]\n  [[ "$(stty -g)" == "$(cat "$PTY_BEFORE")" ]]\nfi\nprintf '%s\\n' "$1" >> "$DOCKER_LOG"; if [[ "$1" == image ]]; then printf 'sha256:fixture\\n'; fi`);
   f.env.DOCKER_LOG = log;
   const p = pty(t, f);
   await p.waitFor(draw);
@@ -48,7 +48,8 @@ test('real PTY routes all main/folder/firewall actions and restores TTY before p
   await p.send('\n', /CodexShell v/);
   await p.send('\n', /Starting Codex/);
   await p.waitFor(draw, p.output.lastIndexOf('Starting Codex'));
-  assert.equal(fs.readFileSync(log, 'utf8'), 'info\nbuild\nrun\n');
+  assert.ok(fs.readFileSync(log, 'utf8').includes('build\n'));
+  assert.ok(fs.readFileSync(log, 'utf8').endsWith('run\n'));
   await move(p, [up]);
   await p.send('\n');
   await p.finish();
@@ -60,7 +61,7 @@ test('real PTY down wrapping, q back/exit and numeric shortcuts restore terminal
   executable(path.join(f.bin, 'docker'), 'exit 1');
   const p = pty(t, f);
   await p.waitFor(draw);
-  await move(p, [down, down, down, down]);
+  await move(p, [down, down, down, down, down]);
   await p.send('\n', /Starting Codex|Docker is required|Docker daemon|No local folders/);
   await p.send('\n', draw);
   await p.send('2', /Mounted folders:/);

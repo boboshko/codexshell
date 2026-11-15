@@ -120,3 +120,89 @@ menu_select() {
     done
   done
 }
+
+menu_tools() {
+  local root=$1 i j count selected=0 reply prefix suffix status group='' n height top focus row mark
+  local -a indexes=() rows=() row_selection=() selection_row=()
+  for ((i=0; i<${#TOOLS_SLUGS[@]}; i++)); do
+    if [[ "${TOOLS_PLATFORMS[$i]}" == macos && "$(uname -s)" != Darwin ]]; then continue; fi
+    indexes+=("$i")
+  done
+  count=${#indexes[@]}
+  while true; do
+    if ! _menu_prepare; then
+      menu_cleanup
+      printf '\nTools\n'
+      if [[ -n "${TOOLS_MESSAGE:-}" ]]; then printf '%s\n' "$TOOLS_MESSAGE"; fi
+      group=''
+      for ((j=0; j<count; j++)); do
+        i=${indexes[$j]}
+        if [[ "$group" != "${TOOLS_GROUPS[$i]}" ]]; then group=${TOOLS_GROUPS[$i]}; printf '\n%s\n' "$group"; fi
+        mark=' '; [[ "${TOOLS_VALUES[$i]}" == off ]] || mark='*'
+        printf '%d. [%s] %s\n' "$((j+1))" "$mark" "${TOOLS_LABELS[$i]}"
+      done
+      printf '\nNumber: toggle | save/back/Enter: save | cancel/q: discard\n> '
+      IFS= read -r reply || return 4
+      case "$reply" in ''|save|back) return 0 ;; cancel|q) return 3 ;; esac
+      if [[ "$reply" =~ ^[1-9][0-9]?$ ]]; then
+        n=$((10#$reply))
+        if ((n>=1 && n<=count)); then _tools_toggle "$root" "${TOOLS_SLUGS[${indexes[$((n-1))]}]}" || true; fi
+      fi
+      continue
+    fi
+    while true; do
+      rows=() row_selection=() selection_row=() group=''
+      for ((j=0; j<count; j++)); do
+        i=${indexes[$j]}
+        if [[ "$group" != "${TOOLS_GROUPS[$i]}" ]]; then
+          group=${TOOLS_GROUPS[$i]}; rows+=("$group"); row_selection+=(-1)
+        fi
+        selection_row+=("${#rows[@]}")
+        mark=' '; [[ "${TOOLS_VALUES[$i]}" == off ]] || mark='*'
+        printf -v row '%d. [%s] %s' "$((j+1))" "$mark" "${TOOLS_LABELS[$i]}"
+        rows+=("$row") row_selection+=("$j")
+      done
+      selection_row+=("${#rows[@]}") rows+=('Back (save)') row_selection+=("$count")
+      height=$(tput lines 2>/dev/null) || height=24
+      [[ "$height" =~ ^[0-9]+$ ]] || height=24
+      height=$((height-6))
+      ((height>=1)) || height=1
+      focus=${selection_row[$selected]}
+      top=$((focus-height+1)); ((top>=0)) || top=0
+      printf '%s%sTools\n' "$_MENU_HOME" "$_MENU_CLEAR"
+      for ((j=top; j<${#rows[@]} && j<top+height; j++)); do
+        if [[ "${row_selection[$j]}" == "$selected" ]]; then printf '%s> %s%s\n' "$_MENU_HIGHLIGHT" "${rows[$j]}" "$_MENU_NORMAL";
+        else printf '  %s\n' "${rows[$j]}"; fi
+      done
+      printf '\n%s\nUp/Down: navigate | Space: toggle\nEnter: save | q/Esc: cancel\n' "${TOOLS_MESSAGE:-}"
+      if ! IFS= read -r -n 1 reply; then menu_cleanup; return 4; fi
+      if [[ "$reply" == $'\033' ]]; then
+        prefix=''; suffix=''
+        if IFS= read -r -n 1 -t 1 prefix; then
+          if [[ "$prefix" == '[' || "$prefix" == O ]]; then
+            if IFS= read -r -n 1 -t 1 suffix; then
+              case "$suffix" in A) selected=$(((selected+count)%(count+1))) ;; B) selected=$(((selected+1)%(count+1))) ;; esac
+              continue
+            fi
+            status=$?
+            menu_cleanup
+            ((status==1)) && return 4
+            return 3
+          fi
+          menu_cleanup; return 3
+        fi
+        menu_cleanup; return 3
+      fi
+      case "$reply" in
+        q|$'\004') menu_cleanup; return 3 ;;
+        ''|$'\r'|$'\n') menu_cleanup; return 0 ;;
+        ' ')
+          if ((selected==count)); then menu_cleanup; return 0; fi
+          menu_cleanup
+          _tools_toggle "$root" "${TOOLS_SLUGS[${indexes[$selected]}]}" || true
+          break
+          ;;
+      esac
+    done
+  done
+}

@@ -22,3 +22,17 @@ persistent.oaistatic.com
 github-releases.githubusercontent.com
 release-assets.githubusercontent.com
 avatars.githubusercontent.com
+
+# Runtime package endpoints; image-build vendor downloads are not runtime permissions.
+[PYTHON,UV]
+pypi.org
+files.pythonhosted.org
+[GO]
+proxy.golang.org
+sum.golang.org
+storage.googleapis.com
+[RUST]
+index.crates.io
+crates.io
+static.crates.io
+static.rust-lang.org

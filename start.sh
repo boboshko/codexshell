@@ -22,15 +22,23 @@ version="$(version_read "$ROOT")" || { printf 'Cannot read a valid VERSION file.
 source "$ROOT/scripts/lib-menu.sh"
 # shellcheck source=scripts/lib-update.sh
 source "$ROOT/scripts/lib-update.sh"
+# shellcheck source=scripts/lib-tools.sh
+source "$ROOT/scripts/lib-tools.sh"
+# shellcheck source=scripts/lib-build.sh
+source "$ROOT/scripts/lib-build.sh"
 FOLDER_TEMP=''
 cleanup() {
   menu_cleanup
+  tools_cleanup
+  build_cleanup
+  if declare -F xcode_bridge_cleanup >/dev/null; then xcode_bridge_cleanup || true; fi
   if [[ -n "$FOLDER_TEMP" ]]; then rm -f -- "$FOLDER_TEMP"; FOLDER_TEMP=''; fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
+[[ ! -L "$ROOT/config" && ( ! -e "$ROOT/config" || -d "$ROOT/config" ) ]] || { printf 'Unsafe configuration directory.\n' >&2; exit 2; }
 mkdir -p "$ROOT/config"
 [[ -f "$ROOT/config/folders.txt" ]] || : > "$ROOT/config/folders.txt"
 [[ -f "$ROOT/config/firewall" ]] || printf 'enabled\n' > "$ROOT/config/firewall"
@@ -113,10 +121,25 @@ firewall() {
     esac
   done
 }
+start_xcode_for_mounts() {
+  local root=$1 path
+  local -a mapping=()
+  [[ "$(uname -s)" == Darwin ]] || { printf 'Xcode: macOS is required.\n' >&2; return 2; }
+  # shellcheck source=scripts/platform/macos/lib-xcode-bridge.sh
+  source "$root/scripts/platform/macos/lib-xcode-bridge.sh"
+  reset_mount_targets
+  while IFS= read -r path || [[ -n "$path" ]]; do
+    [[ -n "$path" && -d "$path" ]] || continue
+    next_mount_target "$path"
+    mapping+=("$path" "$MOUNT_TARGET")
+  done < "$root/config/folders.txt"
+  xcode_bridge_start "$root" ${mapping[@]+"${mapping[@]}"}
+}
 launch() {
   command -v docker >/dev/null || { printf 'Docker is required.\n'; pause; return; }
   docker info >/dev/null 2>&1 || { printf 'Docker daemon is not running or is inaccessible.\n'; pause; return; }
   local -a mounts=() args=()
+  tools_load "$ROOT" || { pause; return; }
   local path i=0
   reset_mount_targets
   while IFS= read -r path || [[ -n "$path" ]]; do
@@ -131,10 +154,22 @@ launch() {
   local mode
   mode="$(cat "$ROOT/config/firewall")"
   [[ "$mode" == enabled || "$mode" == disabled ]] || { printf 'Invalid firewall configuration.\n'; return; }
-  printf 'Building CodexShell image...\n'
-  docker build --progress=plain --build-arg "APP_VERSION=$version" -t codexshell:local "$ROOT/docker" || { printf 'Image build failed.\n'; pause; return; }
+  build_ensure "$ROOT" "$version" || { pause; return; }
+  if tools_enabled XCODE; then start_xcode_for_mounts "$ROOT" || { pause; return; }; fi
   args=(run --rm -it --init --name "codexshell-$$" --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges --pids-limit 512 --memory 8g --mount 'type=volume,source=codexshell-home,target=/home/codex/.codex' --env "FIREWALL_MODE=$mode" --env "HOST_UID=$(id -u)" --env "HOST_GID=$(id -g)")
   if [[ "$mode" == enabled ]]; then args+=(--cap-add NET_ADMIN); fi
+  if tools_enabled DOCKER_SOCKET; then
+    tools_socket_path || { pause; return; }
+    args+=(--mount "type=bind,source=$TOOLS_SOCKET_PATH,target=/var/run/docker.sock" --env CODEXSHELL_DOCKER_SOCKET=1)
+  fi
+  local tool_index enabled_tools=''
+  for ((tool_index=0; tool_index<${#TOOLS_SLUGS[@]}; tool_index++)); do
+    if [[ "${TOOLS_VALUES[$tool_index]}" == on ]]; then enabled_tools="${enabled_tools}${TOOLS_SLUGS[$tool_index]},"; fi
+  done
+  args+=(--env "CODEXSHELL_ENABLED_TOOLS=$enabled_tools")
+  if tools_enabled XCODE; then
+    args+=("${XCODE_DOCKER_ARGS[@]}")
+  fi
   if (( i > 0 )); then args+=("${mounts[@]}"); fi
   args+=(--workdir /workspace codexshell:local)
   printf 'Codex working directory: /workspace\n'
@@ -142,7 +177,7 @@ launch() {
   docker "${args[@]}" || { printf 'Codex session ended with an error.\n'; pause; }
 }
 while true; do
-  main_options=(1 'Launch Codex' 2 'Manage folders' 3 "Firewall ($(cat "$ROOT/config/firewall"))")
+  main_options=(1 'Launch Codex' 2 'Manage folders' 3 "Firewall ($(cat "$ROOT/config/firewall"))" 5 'Tools')
   if [[ -n "$UPDATE_TAG" ]] && version_is_newer "$UPDATE_TAG" "$version"; then
     main_options+=(4 "Update to $UPDATE_VERSION")
   fi
@@ -152,6 +187,12 @@ while true; do
     1) launch ;;
     2) folders ;;
     3) firewall ;;
+    5)
+      if tools_manage "$ROOT"; then :; else
+        tools_status=$?
+        if ((tools_status==1 || tools_status==2)); then pause; fi
+      fi
+      ;;
     4)
       if update_install "$ROOT" "$UPDATE_TAG"; then
         cleanup

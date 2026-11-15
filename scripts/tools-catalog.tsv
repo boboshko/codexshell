@@ -1,0 +1,23 @@
+DOCKER_CLI	Development	Docker CLI	image	all	-
+DOCKER_COMPOSE	Development	Docker Compose	image	all	-
+DOCKER_SOCKET	Development	Docker socket access	runtime	all	-
+PYTHON	Development	Python	image	all	-
+GO	Development	Go	image	all	-
+RUST	Development	Rust	image	all	-
+JAVA	Development	Java	image	all	-
+MAKE	Development	Make	image	all	-
+CMAKE	Development	CMake	image	all	-
+BUILD_ESSENTIAL	Development	GCC/Clang	image	all	-
+GH_CLI	Version Control	GitHub CLI	image	all	-
+POSTGRES	Databases	PostgreSQL	image	all	-
+MONGODB	Databases	MongoDB	image	all	-
+REDIS	Databases	Redis	image	all	-
+PNPM	Package Managers	pnpm	image	all	-
+BUN	Package Managers	Bun	image	all	-
+UV	Package Managers	uv	image	all	PYTHON
+SSH_CLIENT	Utilities	SSH client	image	all	-
+RSYNC	Utilities	rsync	image	all	-
+JQ	Utilities	jq	image	all	-
+YQ	Utilities	yq	image	all	-
+WGET	Utilities	wget	image	all	-
+XCODE	macOS only	Xcode	runtime	macos	-

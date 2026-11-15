@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+bridge_dir="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+exec node "$bridge_dir/bridge-client.mjs" xcodebuild "$@"

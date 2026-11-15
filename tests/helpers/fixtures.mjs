@@ -57,11 +57,11 @@ export function archive(file, entries) {
   blocks.push(Buffer.alloc(1024));
   fs.writeFileSync(file, gzipSync(Buffer.concat(blocks)));
 }
-export const applicationFiles = ['start.sh', 'VERSION', 'scripts/lib-menu.sh', 'scripts/lib-version.sh', 'scripts/lib-update.sh', 'scripts/update.sh', 'docker/Dockerfile', 'docker/entrypoint.sh', 'docker/codex-session.sh', 'docker/firewall.sh', 'docker/allowed-domains.txt', 'README.md', 'CHANGELOG.md'];
+export const applicationFiles = ['start.sh', 'VERSION', 'scripts/lib-menu.sh', 'scripts/lib-version.sh', 'scripts/lib-update.sh', 'scripts/update.sh', 'docker/Dockerfile', 'docker/entrypoint.sh', 'docker/codex-session.sh', 'docker/firewall.sh', 'docker/allowed-domains.txt', 'scripts/lib-tools.sh', 'scripts/lib-build.sh', 'scripts/tools-catalog.tsv', 'scripts/platform/macos/lib-xcode-bridge.sh', 'scripts/platform/macos/xcode-bridge.py', 'docker/install-tools.sh', 'docker/xcode-shims/xcodebuild', 'docker/xcode-shims/xcrun', 'docker/xcode-shims/simctl', 'docker/xcode-shims/bridge-client.mjs', 'README.md', 'CHANGELOG.md'];
 export function releaseEntries(app, version = 'v0.2.0') {
   const prefix = `codexshell-${version.slice(1)}/`;
   const directories = [{ name: prefix, type: '5', mode: 0o755 }, { name: `${prefix}scripts/`, type: '5', mode: 0o755 }, { name: `${prefix}docker/`, type: '5', mode: 0o755 }];
-  return [...directories, ...applicationFiles.map(file => ({ name: prefix + file, mode: file.endsWith('.sh') ? 0o755 : 0o644, content: file === 'VERSION' ? version + '\n' : fs.readFileSync(path.join(app, file)) }))];
+  return [...directories, ...applicationFiles.filter(file => fs.existsSync(path.join(app, file))).map(file => ({ name: prefix + file, mode: file.endsWith('.sh') || /^docker\/xcode-shims\/(xcodebuild|xcrun|simctl)$/.test(file) ? 0o755 : 0o644, content: file === 'VERSION' ? version + '\n' : fs.readFileSync(path.join(app, file)) }))];
 }
 export function updateCurl(f, archivePath, result = 'https://github.com/boboshko/codexshell/releases/tag/v0.2.0') {
   const log = path.join(f.dir, 'curl.log');
