@@ -1,0 +1,25 @@
+# OS metadata files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Temporary files and logs
+*~
+*.swp
+*.swo
+*.tmp
+*.log
+
+# Local CodexShell settings
+/config/folders.txt
+/config/firewall
+/config/update-cache
+/.codexshell-update.*
+/dist/
+
+# Environment files; keep examples in Git
+.env
+.env.*
+!.env.example
+!.env.*.example
