@@ -161,20 +161,20 @@ install_prepare_source() {
     mkdir -- "$INSTALL_TMP/unpack" "$INSTALL_TMP/backup" || return 1
     tar -xzf "$INSTALL_TMP/source.tar.gz" -C "$INSTALL_TMP/unpack" || return 1
     [[ -d "$source" && ! -L "$source" ]] || return 1
-    chmod 755 -- "$source" || return 1
+    chmod 755 "$source" || return 1
     while IFS= read -r item; do
         [[ -d "$source/$item" && ! -L "$source/$item" ]] || return 1
-        chmod 755 -- "$source/$item" || return 1
+        chmod 755 "$source/$item" || return 1
     done < "$INSTALL_TMP/dirs"
     while IFS= read -r item; do
         [[ -f "$source/$item" && ! -L "$source/$item" ]] || return 1
-        chmod 644 -- "$source/$item" || return 1
+        chmod 644 "$source/$item" || return 1
     done < "$INSTALL_TMP/files"
     for item in install.sh start.sh scripts/update.sh docker/install-tools.sh \
         docker/entrypoint.sh docker/codex-session.sh docker/firewall.sh \
         docker/xcode-shims/xcodebuild docker/xcode-shims/xcrun docker/xcode-shims/simctl \
         tests/test.sh tests/test-auth.sh; do
-        [[ ! -f "$source/$item" ]] || chmod 755 -- "$source/$item" || return 1
+        [[ ! -f "$source/$item" ]] || chmod 755 "$source/$item" || return 1
     done
 }
 
@@ -217,7 +217,7 @@ install_fresh() {
     INSTALL_LOCK=$lock
     INSTALL_CANDIDATE=$(mktemp -d "$parent/.codexshell-install.XXXXXXXX")
     cp -Rp -- "$source"/. "$INSTALL_CANDIDATE"/
-    chmod 755 -- "$INSTALL_CANDIDATE"
+    chmod 755 "$INSTALL_CANDIDATE"
     printf '%s\n' "$$" > "$INSTALL_CANDIDATE/.codexshell-install-owner"
     candidate_name=${INSTALL_CANDIDATE##*/}
     [[ ! -e "$INSTALL_TARGET" && ! -L "$INSTALL_TARGET" ]] || return 1
@@ -247,7 +247,7 @@ install_overlay() {
         [[ ! -L "$INSTALL_TARGET/$item" ]] || return 1
         if [[ ! -e "$INSTALL_TARGET/$item" ]]; then
             mkdir -- "$INSTALL_TARGET/$item"
-            chmod 755 -- "$INSTALL_TARGET/$item"
+            chmod 755 "$INSTALL_TARGET/$item"
             INSTALL_CREATED_DIRS+=("$item")
         fi
         [[ -d "$INSTALL_TARGET/$item" ]] || return 1
