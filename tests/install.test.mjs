@@ -97,6 +97,22 @@ test('AC1 fallback installs default destination atomically with normalized modes
   assert.match(log, /--max-filesize\n26214400/);
 });
 
+test('AC1 installer uses macOS-compatible chmod arguments', t => {
+  const f = fixture(t, 'bsd-chmod');
+  const realChmod = path.join(f.bin, 'real-chmod');
+  fs.symlinkSync('/bin/chmod', realChmod);
+  executable(path.join(f.bin, 'chmod'), `
+for arg in "$@"; do
+  if [[ "$arg" == -- ]]; then exit 64; fi
+done
+exec "$REAL_CHMOD" "$@"`);
+  const target = path.join(f.dir, 'mac-compatible');
+  const result = run(f, target, '', { REAL_CHMOD: realChmod });
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.equal(fs.statSync(path.join(target, 'start.sh')).mode & 0o777, 0o755);
+  assert.equal(fs.statSync(path.join(target, 'VERSION')).mode & 0o777, 0o644);
+});
+
 test('AC2 valid release is preferred and wget has the same install path', t => {
   const f = fixture(t, 'wget');
   fs.unlinkSync(path.join(f.bin, 'curl'));
