@@ -23,7 +23,12 @@ test('AC2 Tools PTY wraps, skips headings and Space/Enter commits with restored 
   const { f, p } = await enter(t, 'tools-pty-save');
   await p.send('\x1b[A', draw);
   await p.send('\x1b[B', draw);
+  const beforeToggle = p.offset;
   await p.send(' ', draw);
+  const toggleFrame = p.output.slice(beforeToggle);
+  assert.equal(toggleFrame.includes('\x1b[?1049l'), false, 'Space must not leave the Tools screen');
+  assert.equal(toggleFrame.includes('\x1b[?1049h'), false, 'Space must not re-enter the Tools screen');
+  assert.equal(toggleFrame.includes('\x1b[?25h'), false, 'Space must keep the cursor hidden');
   await p.send('\n', /CodexShell v/);
   assert.match(fs.readFileSync(path.join(f.app, 'config/tools.conf'), 'utf8'), /^TOOL_DOCKER_CLI=on$/m);
   await p.send('q');

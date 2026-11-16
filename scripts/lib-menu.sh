@@ -198,8 +198,8 @@ menu_tools() {
         ''|$'\r'|$'\n') menu_cleanup; return 0 ;;
         ' ')
           if ((selected==count)); then menu_cleanup; return 0; fi
-          menu_cleanup
           _tools_toggle "$root" "${TOOLS_SLUGS[${indexes[$selected]}]}" || true
+          if [[ "${_MENU_ACTIVE:-0}" == 1 ]]; then continue; fi
           break
           ;;
       esac
