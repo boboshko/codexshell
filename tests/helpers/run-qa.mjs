@@ -7,7 +7,7 @@ import { root } from './fixtures.mjs';
 
 const output = path.join(root, '.pipeline/05-test');
 fs.mkdirSync(output, { recursive: true });
-const shell = ['start.sh', 'scripts/lib-menu.sh', 'scripts/lib-tools.sh', 'scripts/lib-build.sh', 'scripts/lib-version.sh', 'scripts/lib-update.sh', 'scripts/update.sh', 'scripts/platform/macos/lib-xcode-bridge.sh', 'docker/install-tools.sh', 'docker/entrypoint.sh', 'docker/firewall.sh', 'docker/codex-session.sh', 'docker/xcode-shims/xcodebuild', 'docker/xcode-shims/xcrun', 'docker/xcode-shims/simctl', 'tests/test.sh', 'tests/test-auth.sh'];
+const shell = ['install.sh', 'start.sh', 'scripts/lib-menu.sh', 'scripts/lib-tools.sh', 'scripts/lib-build.sh', 'scripts/lib-version.sh', 'scripts/lib-update.sh', 'scripts/update.sh', 'scripts/platform/macos/lib-xcode-bridge.sh', 'docker/install-tools.sh', 'docker/entrypoint.sh', 'docker/firewall.sh', 'docker/codex-session.sh', 'docker/xcode-shims/xcodebuild', 'docker/xcode-shims/xcrun', 'docker/xcode-shims/simctl', 'tests/test.sh', 'tests/test-auth.sh'];
 const sources = [...shell, 'scripts/tools-catalog.tsv', 'scripts/platform/macos/xcode-bridge.py', 'docker/xcode-shims/bridge-client.mjs', 'docker/Dockerfile', 'docker/allowed-domains.txt'];
 const snapshot = () => Object.fromEntries(sources.map(file => [file, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]));
 const evidence = { started: new Date().toISOString(), platform: { os: process.platform, arch: process.arch, node: process.version }, before: snapshot(), checks: [] };

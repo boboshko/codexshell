@@ -120,7 +120,7 @@ update_main() {
     UPDATE_LOCK=$UPDATE_ROOT/.codexshell-update.lock
     UPDATE_STAGE=$(mktemp -d "$UPDATE_ROOT/.codexshell-update.XXXXXXXX") || return 1
     prefix=codexshell-${tag#v}
-    required=(start.sh VERSION scripts/lib-menu.sh scripts/lib-version.sh scripts/lib-update.sh scripts/update.sh
+    required=(install.sh start.sh VERSION scripts/lib-menu.sh scripts/lib-version.sh scripts/lib-update.sh scripts/update.sh
         scripts/lib-tools.sh scripts/lib-build.sh scripts/tools-catalog.tsv
         scripts/platform/macos/lib-xcode-bridge.sh scripts/platform/macos/xcode-bridge.py
         docker/Dockerfile docker/install-tools.sh docker/entrypoint.sh docker/codex-session.sh docker/firewall.sh docker/allowed-domains.txt

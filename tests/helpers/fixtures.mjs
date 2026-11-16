@@ -11,7 +11,7 @@ export function sandbox(t, prefix = 'test') {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const app = path.join(dir, 'codexshell');
   fs.mkdirSync(app);
-  for (const file of ['start.sh', 'VERSION', 'README.md', 'CHANGELOG.md']) {
+  for (const file of ['install.sh', 'start.sh', 'VERSION', 'README.md', 'CHANGELOG.md']) {
     if (fs.existsSync(path.join(root, file))) fs.copyFileSync(path.join(root, file), path.join(app, file));
   }
   fs.cpSync(path.join(root, 'scripts'), path.join(app, 'scripts'), { recursive: true });
@@ -57,7 +57,7 @@ export function archive(file, entries) {
   blocks.push(Buffer.alloc(1024));
   fs.writeFileSync(file, gzipSync(Buffer.concat(blocks)));
 }
-export const applicationFiles = ['start.sh', 'VERSION', 'scripts/lib-menu.sh', 'scripts/lib-version.sh', 'scripts/lib-update.sh', 'scripts/update.sh', 'docker/Dockerfile', 'docker/entrypoint.sh', 'docker/codex-session.sh', 'docker/firewall.sh', 'docker/allowed-domains.txt', 'scripts/lib-tools.sh', 'scripts/lib-build.sh', 'scripts/tools-catalog.tsv', 'scripts/platform/macos/lib-xcode-bridge.sh', 'scripts/platform/macos/xcode-bridge.py', 'docker/install-tools.sh', 'docker/xcode-shims/xcodebuild', 'docker/xcode-shims/xcrun', 'docker/xcode-shims/simctl', 'docker/xcode-shims/bridge-client.mjs', 'README.md', 'CHANGELOG.md'];
+export const applicationFiles = ['install.sh', 'start.sh', 'VERSION', 'scripts/lib-menu.sh', 'scripts/lib-version.sh', 'scripts/lib-update.sh', 'scripts/update.sh', 'docker/Dockerfile', 'docker/entrypoint.sh', 'docker/codex-session.sh', 'docker/firewall.sh', 'docker/allowed-domains.txt', 'scripts/lib-tools.sh', 'scripts/lib-build.sh', 'scripts/tools-catalog.tsv', 'scripts/platform/macos/lib-xcode-bridge.sh', 'scripts/platform/macos/xcode-bridge.py', 'docker/install-tools.sh', 'docker/xcode-shims/xcodebuild', 'docker/xcode-shims/xcrun', 'docker/xcode-shims/simctl', 'docker/xcode-shims/bridge-client.mjs', 'README.md', 'CHANGELOG.md'];
 export function releaseEntries(app, version = 'v0.2.0') {
   const prefix = `codexshell-${version.slice(1)}/`;
   const directories = [{ name: prefix, type: '5', mode: 0o755 }, { name: `${prefix}scripts/`, type: '5', mode: 0o755 }, { name: `${prefix}docker/`, type: '5', mode: 0o755 }];
