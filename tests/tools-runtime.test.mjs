@@ -83,6 +83,18 @@ test('AC7 launch binds socket only when enabled, rejects missing socket and neve
   fs.writeFileSync(f.env.DOCKER_LOG, '');
   r = start(f, '1\n0\n'); assert.equal(r.status, 0, r.stderr);
   log = fs.readFileSync(f.env.DOCKER_LOG, 'utf8'); assert.ok(log.includes('source=' + socket)); assert.match(log, /CODEXSHELL_DOCKER_SOCKET=1/); assert.doesNotMatch(log, /--privileged/);
+  const runLine = log.split('\n').find(line => line.startsWith('run '));
+  assert.ok(runLine, 'missing Docker run invocation');
+  const runArgs = runLine.split(' ');
+  assert.deepEqual(runArgs.filter(arg => ['CHOWN', 'DAC_OVERRIDE', 'KILL', 'SETUID', 'SETGID', 'NET_ADMIN'].includes(arg)), ['CHOWN', 'DAC_OVERRIDE', 'KILL', 'SETUID', 'SETGID', 'NET_ADMIN']);
+  assert.equal(runArgs.filter(arg => arg === '--cap-drop').length, 1);
+  assert.equal(runArgs.filter(arg => arg === 'ALL').length, 1);
+  assert.equal(runArgs.filter(arg => arg === '--cap-add').length, 6);
+  assert.equal(runArgs.filter(arg => arg === '--security-opt').length, 1);
+  assert.equal(runArgs.filter(arg => arg === 'no-new-privileges').length, 1);
+  for (const forbidden of ['--privileged', '--pid', '--userns']) {
+    assert.equal(runArgs.some(arg => arg === forbidden || arg.startsWith(forbidden + '=')), false);
+  }
   await new Promise(resolve => server.close(resolve));
   fs.writeFileSync(f.env.DOCKER_LOG, '');
   r = start(f, '1\n\n0\n'); assert.equal(r.status, 0, r.stderr);

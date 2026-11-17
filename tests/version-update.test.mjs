@@ -7,8 +7,11 @@ import { spawnSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 import { root, sandbox, executable, bash, start, archive, releaseEntries, applicationFiles, updateCurl } from './helpers/fixtures.mjs';
 
+function appVersion(f) {
+  return fs.readFileSync(path.join(f.app, 'VERSION'), 'utf8').trim();
+}
 function check(f) {
-  return bash(f, 'source "$1/scripts/lib-version.sh"; source "$1/scripts/lib-update.sh"; update_check "$1" v0.1.0; printf "TAG=%s\\nVERSION=%s\\n" "${UPDATE_TAG:-}" "${UPDATE_VERSION:-}"', { CODEXSHELL_NO_UPDATE_CHECK: '0' });
+  return bash(f, 'source "$1/scripts/lib-version.sh"; source "$1/scripts/lib-update.sh"; update_check "$1" "$CURRENT_VERSION"; printf "TAG=%s\\nVERSION=%s\\n" "${UPDATE_TAG:-}" "${UPDATE_VERSION:-}"', { CODEXSHELL_NO_UPDATE_CHECK: '0', CURRENT_VERSION: appVersion(f) });
 }
 function snapshot(app) {
   return Object.fromEntries(applicationFiles.map(file => [file, fs.existsSync(path.join(app, file)) ? crypto.createHash('sha256').update(fs.readFileSync(path.join(app, file))).digest('hex') : null]));
@@ -60,9 +63,10 @@ test('newer release check is fixed-source, bounded, cached, and shown in the men
 });
 
 test('equal, older, foreign, malformed and failed checks never offer an update', t => {
-  for (const redirect of ['https://github.com/boboshko/codexshell/releases/tag/v0.1.0', 'https://github.com/boboshko/codexshell/releases/tag/v0.0.9', 'https://example.com/releases/tag/v9.0.0', 'https://github.com/boboshko/claudeshell/releases/tag/v9.0.0', '$(touch injected)', 'https://github.com/boboshko/codexshell/releases/tag/v0.2.0-rc1', '']) {
+  for (const redirect of [null, 'https://github.com/boboshko/codexshell/releases/tag/v0.0.9', 'https://example.com/releases/tag/v9.0.0', 'https://github.com/boboshko/claudeshell/releases/tag/v9.0.0', '$(touch injected)', 'https://github.com/boboshko/codexshell/releases/tag/v0.2.0-rc1', '']) {
     const f = sandbox(t, 'release-invalid');
-    const log = updateCurl(f, undefined, redirect);
+    const releaseRedirect = redirect ?? `https://github.com/boboshko/codexshell/releases/tag/${appVersion(f)}`;
+    const log = updateCurl(f, undefined, releaseRedirect);
     const result = check(f);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /TAG=\n/);
@@ -92,7 +96,7 @@ test('corrupt, expired, future, and shell-shaped caches are treated as data', t 
 
 test('missing curl leaves ordinary operations usable', t => {
   const f = sandbox(t, 'missing-curl');
-  const result = bash(f, 'command() { if [[ "$1" == -v && "${2:-}" == curl ]]; then return 1; fi; builtin command "$@"; }; source "$1/scripts/lib-version.sh"; source "$1/scripts/lib-update.sh"; update_check "$1" v0.1.0; printf "TAG=%s\\n" "${UPDATE_TAG:-}"');
+  const result = bash(f, 'command() { if [[ "$1" == -v && "${2:-}" == curl ]]; then return 1; fi; builtin command "$@"; }; source "$1/scripts/lib-version.sh"; source "$1/scripts/lib-update.sh"; update_check "$1" "$CURRENT_VERSION"; printf "TAG=%s\\n" "${UPDATE_TAG:-}"', { CURRENT_VERSION: appVersion(f) });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /TAG=\n/);
 });
@@ -133,6 +137,7 @@ test('menu selection installs a cached newer release and restarts with the new v
 
 test('invalid input, download failure, and corrupt archives preserve the installed app', t => {
   const f = sandbox(t, 'update-failure');
+  const currentVersion = appVersion(f);
   const before = snapshot(f.app);
   updateCurl(f);
   assert.notEqual(install(f, 'v0.2.0;touch injected').status, 0);
@@ -144,7 +149,7 @@ test('invalid input, download failure, and corrupt archives preserve the install
   assert.notEqual(install(f).status, 0);
   assert.deepEqual(snapshot(f.app), before);
   assert.equal(fs.existsSync(path.join(f.app, 'injected')), false);
-  assert.match(start(f, '', ['--version']).stdout, /v0\.1\.0/);
+  assert.equal(start(f, '', ['--version']).stdout.trim(), currentVersion);
 });
 
 test('unsafe or mismatched release archives never modify app or outside sentinels', t => {
@@ -173,6 +178,7 @@ test('unsafe or mismatched release archives never modify app or outside sentinel
 
 test('symlinked installation destinations cannot redirect update writes', t => {
   const f = sandbox(t, 'destination-link');
+  const currentVersion = appVersion(f);
   release(f);
   const outside = path.join(f.dir, 'outside.sh');
   fs.writeFileSync(outside, 'untouched');
@@ -180,11 +186,12 @@ test('symlinked installation destinations cannot redirect update writes', t => {
   fs.symlinkSync(outside, path.join(f.app, 'start.sh'));
   assert.notEqual(install(f).status, 0);
   assert.equal(fs.readFileSync(outside, 'utf8'), 'untouched');
-  assert.equal(fs.readFileSync(path.join(f.app, 'VERSION'), 'utf8'), 'v0.1.0\n');
+  assert.equal(fs.readFileSync(path.join(f.app, 'VERSION'), 'utf8'), `${currentVersion}\n`);
 });
 
 test('mid-install write failure rolls back every prior replacement', t => {
   const f = sandbox(t, 'rollback');
+  const currentVersion = appVersion(f);
   const entries = releaseEntries(f.app);
   entries.find(e => e.name.endsWith('/start.sh')).content = fs.readFileSync(path.join(f.app, 'start.sh'), 'utf8') + '\n:\n';
   release(f, entries);
@@ -197,7 +204,7 @@ test('mid-install write failure rolls back every prior replacement', t => {
   assert.notEqual(result.status, 0);
   assert.equal(fs.existsSync(marker), true, 'fault must occur after earlier files were replaced');
   assert.deepEqual(snapshot(f.app), before);
-  assert.match(start(f, '', ['--version']).stdout, /v0\.1\.0/);
+  assert.equal(start(f, '', ['--version']).stdout.trim(), currentVersion);
   assert.equal(fs.readdirSync(f.app).some(name => name.startsWith('.codexshell-update')), false);
 });
 
@@ -255,6 +262,7 @@ test('installer lock and missing dependency fail before downloading or changing 
 
 test('TERM during replacement rolls back prior writes and cleans private staging', t => {
   const f = sandbox(t, 'installer-term');
+  const currentVersion = appVersion(f);
   release(f);
   const before = snapshot(f.app);
   executable(path.join(f.bin, 'mv'), `last="\${!#}"\nif [[ "$last" == "$FAULT_APP/scripts/lib-version.sh" && ! -e "$FAULT_MARKER" ]]; then\n  : > "$FAULT_MARKER"\n  kill -TERM "$PPID"\n  exit 73\nfi\nexec /bin/mv "$@"`);
@@ -264,7 +272,7 @@ test('TERM during replacement rolls back prior writes and cleans private staging
   assert.equal(result.status, 143, result.stderr);
   assert.equal(fs.existsSync(f.env.FAULT_MARKER), true);
   assert.deepEqual(snapshot(f.app), before);
-  assert.match(start(f, '', ['--version']).stdout, /v0\.1\.0/);
+  assert.equal(start(f, '', ['--version']).stdout.trim(), currentVersion);
   assert.equal(fs.readdirSync(f.app).some(name => name.startsWith('.codexshell-update')), false);
 });
 

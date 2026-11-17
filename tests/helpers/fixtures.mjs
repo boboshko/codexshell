@@ -18,7 +18,15 @@ export function sandbox(t, prefix = 'test') {
   fs.cpSync(path.join(root, 'docker'), path.join(app, 'docker'), { recursive: true });
   const bin = path.join(dir, 'bin');
   fs.mkdirSync(bin);
-  const env = { ...process.env, TERM: 'dumb', CODEXSHELL_NO_UPDATE_CHECK: '1', PATH: `${bin}:${process.env.PATH}` };
+  const env = {
+    ...process.env,
+    TERM: 'dumb',
+    CODEXSHELL_NO_UPDATE_CHECK: '1',
+    CODEXSHELL_ENABLED_TOOLS: '',
+    CODEXSHELL_DOCKER_SOCKET: '0',
+    CODEXSHELL_XCODE: '0',
+    PATH: `${bin}:${process.env.PATH}`
+  };
   return { dir, app, bin, env };
 }
 export function executable(file, text) {
