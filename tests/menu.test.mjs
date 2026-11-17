@@ -82,7 +82,7 @@ test('firewall actions persist mode and expose the existing allowlist', t => {
   assert.ok(viewed.stdout.includes(fs.readFileSync(path.join(f.app, 'docker/allowed-domains.txt'), 'utf8').trim()));
 });
 
-test('Docker errors return to the menu without running a failed image', t => {
+test('Docker prerequisite errors return to the menu without running a failed image', t => {
   const f = sandbox(t, 'docker-errors');
   const log = docker(f);
   for (const extra of [{ DOCKER_INFO_STATUS: '1' }, { DOCKER_BUILD_STATUS: '1' }]) {
@@ -91,10 +91,28 @@ test('Docker errors return to the menu without running a failed image', t => {
     assert.equal(result.status, 0, result.stderr);
     assert.equal(fs.readFileSync(log, 'utf8').split('\n').includes('run'), false);
   }
-  fs.writeFileSync(log, '');
-  const failedRun = start(f, '1\n\n0\n', [], { DOCKER_RUN_STATUS: '7' });
-  assert.equal(failedRun.status, 0, failedRun.stderr);
-  assert.match(failedRun.stdout, /error|failed/i);
+});
+
+for (const dockerStatus of [0, 130, 143]) {
+  test(`Docker status ${dockerStatus} returns quietly without an error pause`, t => {
+    const f = sandbox(t, `docker-status-${dockerStatus}`);
+    docker(f);
+    const result = start(f, '1\n0\n', [], { DOCKER_RUN_STATUS: String(dockerStatus) });
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout + result.stderr, /Codex session ended with an error\./);
+    assert.doesNotMatch(result.stdout + result.stderr, /Press Enter to continue\.\.\./);
+    assert.ok(result.stdout.match(/Launch Codex/g)?.length >= 2, 'launcher did not return to the menu');
+  });
+}
+
+test('Docker status 7 retains the exact error and pause before returning to the menu', t => {
+  const f = sandbox(t, 'docker-status-7');
+  docker(f);
+  const result = start(f, '1\n\n0\n', [], { DOCKER_RUN_STATUS: '7' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout + result.stderr, /Codex session ended with an error\./);
+  assert.match(result.stdout + result.stderr, /Press Enter to continue\.\.\./);
+  assert.ok(result.stdout.match(/Launch Codex/g)?.length >= 2, 'launcher did not return to the menu');
 });
 
 test('menu library fallback returns selected keys and handles EOF', t => {

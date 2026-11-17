@@ -65,7 +65,10 @@ next_mount_target() {
   MOUNT_COUNT=$((MOUNT_COUNT+1))
   MOUNT_TARGET="$candidate"
 }
-pause() { IFS= read -r -p 'Press Enter to continue...' _ || true; }
+pause() {
+  printf 'Press Enter to continue...' >&2
+  IFS= read -r _ || true
+}
 folders() {
   local n path title line
   while true; do
@@ -156,7 +159,7 @@ launch() {
   [[ "$mode" == enabled || "$mode" == disabled ]] || { printf 'Invalid firewall configuration.\n'; return; }
   build_ensure "$ROOT" "$version" || { pause; return; }
   if tools_enabled XCODE; then start_xcode_for_mounts "$ROOT" || { pause; return; }; fi
-  args=(run --rm -it --init --name "codexshell-$$" --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges --pids-limit 512 --memory 8g --mount 'type=volume,source=codexshell-home,target=/home/codex/.codex' --env "FIREWALL_MODE=$mode" --env "HOST_UID=$(id -u)" --env "HOST_GID=$(id -g)")
+  args=(run --rm -it --init --name "codexshell-$$" --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add KILL --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges --pids-limit 512 --memory 8g --mount 'type=volume,source=codexshell-home,target=/home/codex/.codex' --env "FIREWALL_MODE=$mode" --env "HOST_UID=$(id -u)" --env "HOST_GID=$(id -g)")
   if [[ "$mode" == enabled ]]; then args+=(--cap-add NET_ADMIN); fi
   if tools_enabled DOCKER_SOCKET; then
     tools_socket_path || { pause; return; }
@@ -174,7 +177,16 @@ launch() {
   args+=(--workdir /workspace codexshell:local)
   printf 'Codex working directory: /workspace\n'
   printf 'Starting Codex (firewall: %s)...\n' "$mode"
-  docker "${args[@]}" || { printf 'Codex session ended with an error.\n'; pause; }
+  local docker_status
+  if docker "${args[@]}"; then
+    docker_status=0
+  else
+    docker_status=$?
+  fi
+  case "$docker_status" in
+    0|130|143) ;;
+    *) printf 'Codex session ended with an error.\n'; pause ;;
+  esac
 }
 while true; do
   main_options=(1 'Launch Codex' 2 'Manage folders' 3 "Firewall ($(cat "$ROOT/config/firewall"))" 5 'Tools')
